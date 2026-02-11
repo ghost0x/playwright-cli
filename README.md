@@ -224,6 +224,27 @@ playwright-cli video-start              # start video recording
 playwright-cli video-stop [filename]    # stop video recording
 ```
 
+### Screenshot Streaming
+
+Stream live screenshots via WebSocket for remote monitoring:
+
+```bash
+node stream-server.js                   # start screenshot streaming server (default port 8080)
+node stream-server.js --port=8080       # specify custom port
+node stream-server.js --interval=500    # set screenshot interval (ms)
+node stream-server.js -s=mySession      # stream from specific session
+```
+
+Open `stream-client.html` in a browser to view the stream, or connect via WebSocket:
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080');
+ws.onmessage = (event) => {
+  // event.data contains base64-encoded PNG image
+  img.src = 'data:image/png;base64,' + event.data;
+};
+```
+
 ### Install
 
 ```bash
@@ -467,3 +488,87 @@ The installed skill includes detailed reference guides for common tasks:
 * **Test generation** — generate Playwright tests from interactions
 * **Tracing** — record and inspect execution traces
 * **Video recording** — capture browser session videos
+* **Screenshot streaming** — stream live screenshots via WebSocket
+
+## Screenshot Streaming
+
+The screenshot streaming feature allows you to watch your Playwright browser automation in real-time by streaming screenshots to a WebSocket server. This is useful for:
+
+- **Remote monitoring**: Watch automation running on a remote server
+- **Debugging**: See what's happening in headless browser sessions
+- **Demos**: Show live browser automation to others
+- **Recording**: Capture screenshots at regular intervals
+
+### How It Works
+
+The stream server:
+1. Captures screenshots from your Playwright CLI session at regular intervals (default: 1 second)
+2. Converts them to base64-encoded PNG images
+3. Broadcasts them to all connected WebSocket clients
+4. Stores screenshots temporarily in memory and cleans them up after transmission
+
+### Quick Start
+
+1. Start your Playwright CLI session:
+```bash
+playwright-cli open https://example.com --headed
+```
+
+2. In a separate terminal, start the stream server:
+```bash
+node stream-server.js
+```
+
+3. Open `stream-client.html` in your web browser to view the stream
+
+### Options
+
+```bash
+# Custom port
+node stream-server.js --port=3000
+
+# Faster frame rate (500ms interval = ~2 fps)
+node stream-server.js --interval=500
+
+# Slower frame rate (2000ms interval = 0.5 fps)
+node stream-server.js --interval=2000
+
+# Stream from a specific session
+node stream-server.js -s=mySession
+
+# Combine options
+node stream-server.js --port=3000 --interval=500 -s=mySession
+```
+
+### Custom Client
+
+You can create your own client to consume the stream:
+
+```javascript
+const WebSocket = require('ws');
+
+const ws = new WebSocket('ws://localhost:8080');
+
+ws.on('message', (data) => {
+  // data is a base64-encoded PNG image
+  console.log('Received screenshot:', data.length, 'bytes');
+  
+  // In a browser:
+  // img.src = 'data:image/png;base64,' + data;
+  
+  // In Node.js:
+  // const buffer = Buffer.from(data, 'base64');
+  // fs.writeFileSync('screenshot.png', buffer);
+});
+```
+
+### Performance Considerations
+
+- **Interval**: Lower intervals (faster frame rates) consume more CPU and network bandwidth
+- **Client Count**: Each connected client receives a copy of every screenshot
+- **Image Size**: Screenshot size depends on browser viewport size
+- **Network**: Streaming over slow networks may cause lag; adjust interval accordingly
+
+### Stopping the Stream
+
+Press `Ctrl+C` in the terminal running the stream server to stop it gracefully.
