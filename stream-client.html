@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright Screenshot Stream</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .disconnect {
+            background-color: #f44336;
+        }
+        .disconnect:hover {
+            background-color: #da190b;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+        .status.connecting {
+            background-color: #ff9800;
+            color: white;
+        }
+        .stream-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #stream {
+            max-width: 100%;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        #stream.active {
+            display: inline-block;
+        }
+        .placeholder {
+            color: #999;
+            padding: 100px 20px;
+            font-size: 18px;
+        }
+        .stats {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Playwright Screenshot Stream</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="wsUrl">WebSocket URL:</label>
+            <input type="text" id="wsUrl" value="ws://localhost:8080" placeholder="ws://localhost:8080">
+        </div>
+        <div class="control-group">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled class="disconnect">Disconnect</button>
+            <span id="status" class="status disconnected">Disconnected</span>
+        </div>
+        <div class="stats">
+            <span>Frames received: <strong id="frameCount">0</strong></span> | 
+            <span>FPS: <strong id="fps">0</strong></span> | 
+            <span>Last update: <strong id="lastUpdate">Never</strong></span>
+        </div>
+    </div>
+
+    <div class="stream-container">
+        <img id="stream" alt="Stream will appear here" />
+        <div id="placeholder" class="placeholder">
+            Connect to the WebSocket server to start streaming
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let frameCount = 0;
+        let lastFrameTime = null;
+        let fpsInterval = null;
+
+        function updateStatus(status, text) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status ' + status;
+            statusEl.textContent = text;
+        }
+
+        function connect() {
+            const url = document.getElementById('wsUrl').value;
+            
+            if (!url) {
+                alert('Please enter a WebSocket URL');
+                return;
+            }
+
+            updateStatus('connecting', 'Connecting...');
+            document.getElementById('connectBtn').disabled = true;
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    updateStatus('connected', 'Connected');
+                    document.getElementById('disconnectBtn').disabled = false;
+                    frameCount = 0;
+                    document.getElementById('frameCount').textContent = '0';
+                    
+                    // Start FPS counter
+                    if (fpsInterval) clearInterval(fpsInterval);
+                    let lastCount = 0;
+                    fpsInterval = setInterval(() => {
+                        const fps = frameCount - lastCount;
+                        document.getElementById('fps').textContent = fps;
+                        lastCount = frameCount;
+                    }, 1000);
+                };
+
+                ws.onmessage = (event) => {
+                    const img = document.getElementById('stream');
+                    const placeholder = document.getElementById('placeholder');
+                    
+                    img.src = 'data:image/png;base64,' + event.data;
+                    img.classList.add('active');
+                    placeholder.style.display = 'none';
+                    
+                    frameCount++;
+                    document.getElementById('frameCount').textContent = frameCount;
+                    
+                    const now = new Date();
+                    document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+                    lastFrameTime = now;
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('disconnected', 'Error');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                };
+
+                ws.onclose = () => {
+                    updateStatus('disconnected', 'Disconnected');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    
+                    if (fpsInterval) {
+                        clearInterval(fpsInterval);
+                        fpsInterval = null;
+                    }
+                };
+            } catch (error) {
+                alert('Failed to connect: ' + error.message);
+                updateStatus('disconnected', 'Disconnected');
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        // Allow Enter key to connect
+        document.getElementById('wsUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('connectBtn').disabled) {
+                connect();
+            }
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html>
