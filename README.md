@@ -505,7 +505,7 @@ The stream server:
 1. Captures screenshots from your Playwright CLI session at regular intervals (default: 1 second)
 2. Converts them to base64-encoded PNG images
 3. Broadcasts them to all connected WebSocket clients
-4. Stores screenshots temporarily in memory and cleans them up after transmission
+4. Stores screenshots temporarily as files and cleans them up after transmission
 
 ### Quick Start
 

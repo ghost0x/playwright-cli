@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-const { WebSocketServer } = require('ws');
+const { WebSocketServer, WebSocket } = require('ws');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -141,7 +141,7 @@ class ScreenshotStreamServer {
         
         // Broadcast to all connected clients
         this.clients.forEach((client) => {
-          if (client.readyState === 1) { // WebSocket.OPEN
+          if (client.readyState === WebSocket.OPEN) {
             client.send(base64Screenshot);
           }
         });
